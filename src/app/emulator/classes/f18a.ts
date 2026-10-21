@@ -944,6 +944,8 @@ export class F18A implements VDP {
     writeData(b: number) {
         if (!this.dataPortMode) {
             this.ram[this.addressRegister] = b;
+            // F18A st_data_write copies the CPU byte into its prefetch buffer.
+            this.prefetchByte = b;
             this.addressRegister += this.addressIncrement;
             this.addressRegister &= 0x3FFF;
         } else {

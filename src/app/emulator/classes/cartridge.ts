@@ -2,6 +2,7 @@ import {Software} from "../../classes/software";
 import {MemoryDevice} from "../interfaces/memory-device";
 import {MemoryView} from "../../classes/memory-view";
 import {GROMArray} from "./grom-array";
+import {UberGrom} from "./ubergrom";
 import {Memory} from "./memory";
 import {Settings} from "../../classes/settings";
 import {CRUDevice} from "../interfaces/cru-device";
@@ -10,6 +11,7 @@ import {gigacartOptions} from "../../classes/gigacart";
 
 export class Cartridge implements MemoryDevice, CRUDevice, Stateful  {
 
+    private uberGrom?: UberGrom;
     private cartImage?: Uint8Array;
     private gromBases: GROMArray[];
     private inverted = false;
@@ -30,6 +32,16 @@ constructor(software: Software, private settings: Settings) {
     }
 
     private init(software: Software) {
+        if (software.ubergrom) {
+            if (software.gigacart || software.grom || software.groms ||
+                software.inverted || software.cruBankSwitched || software.ramFG99Paged ||
+                software.ramAt6000 || software.ramAt7000 ||
+                (software.rom && (software.rom.length < 8192 || software.rom.length > 524288 ||
+                    !Number.isInteger(Math.log2(software.rom.length))))) {
+                throw new Error('UberGROM needs its ATmega images and an optional non-inverted ROM of 8–512 KiB.');
+            }
+            this.uberGrom = new UberGrom(software.ubergrom);
+        }
         this.cartImage = software.rom;
         this.bankCount = this.cartImage ? Math.floor(this.cartImage.length / 0x2000) : 0;
         this.gigacart = software.gigacart;
@@ -75,6 +87,7 @@ constructor(software: Software, private settings: Settings) {
 
     public reset() {
         this.setCurrentCartBank(this.inverted ? this.bankCount - 1 : this.initialBank);
+        this.uberGrom?.resetAddress();
     }
 
     public read(addr: number): number {
@@ -157,9 +170,12 @@ constructor(software: Software, private settings: Settings) {
     }
 
     public hasGROM() {
-        return this.gromBases.length > 0;
+        return !!this.uberGrom || this.gromBases.length > 0;
     }
 
+    public getUberGrom(): UberGrom | undefined {
+        return this.uberGrom;
+    }
     public readGROM(addr: number): number {
         let value = 0;
         if (this.gromBases.length > 0) {
@@ -191,6 +207,10 @@ constructor(software: Software, private settings: Settings) {
     }
 
     public writeGROM(addr: number, w: number) {
+        if (this.uberGrom) {
+            this.uberGrom.writePort(addr, w);
+            return;
+        }
         if (this.gromBases.length > 0) {
             addr = addr & 0x9C02;
             if (addr === Memory.GRMWD) {
@@ -268,6 +288,7 @@ constructor(software: Software, private settings: Settings) {
     getState(): any {
         return {
             cartImage: this.cartImage,
+            ubergrom: this.uberGrom?.getState(),
             gromBases: this.gromBases.map(gb => gb.getState()),
             inverted: this.inverted,
             cruBankSwitched: this.cruBankSwitched,
@@ -285,6 +306,9 @@ constructor(software: Software, private settings: Settings) {
     }
 
     restoreState(state: any): void {
+        this.uberGrom?.setConnection();
+        this.uberGrom = state.ubergrom ? new UberGrom(state.ubergrom) : undefined;
+        this.uberGrom?.restoreState(state.ubergrom);
         this.cartImage = state.cartImage;
         this.gromBases = state.gromBases.map((data: any) => {
             const gromBase = new GROMArray();

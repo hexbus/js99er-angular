@@ -9,6 +9,11 @@ This project was originally generated with [Angular CLI](https://github.com/angu
 This update adds larger Gigacart images and explicit ROM-only, separate-GROM
 and CPLD boot settings. See [Gigacart loading and test results](docs/gigacart.md)
 for supported files, bank selection and the limits of testing.
+## UberGROM cartridges
+
+Load an UberGROM package or create a blank board with recovery. The UberGROM
+tab provides write protection, export, serial/modem connections and hardware
+inspection. See [setup, programming and test results](docs/ubergrom.md).
 
 ## Setting up the development environment
 

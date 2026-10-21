@@ -1,3 +1,4 @@
+:host { display: block; height: 100%; min-height: 0; }
 .status {
     width: 100%;
     margin: 0;
@@ -53,8 +54,8 @@
 .debugger {
     display: grid;
     height: 100%;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
     grid-template-areas:
         "status status"
         "toolbar toolbar"
@@ -71,3 +72,14 @@ hex-input-field {
 }
 
 
+
+.memory-help { margin: 0 0 8px; font-size: 13px; overflow-wrap: anywhere; }
+
+.memory-view, .memory-view-1, .memory-view-2 { min-height: 0; }
+
+.status { overflow-x: auto; }
+.memory-view, .memory-view-1, .memory-view-2 { overflow-x: auto; }
+.debugger-toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.memory-select { flex: 1 1 160px; padding-right: 0; }
+hex-input-field.address-field { flex: 1 1 100px; padding-right: 0; }
+.memory-help { flex-basis: 100%; }

@@ -14,6 +14,8 @@ import {MemoryDevice} from "../../emulator/interfaces/memory-device";
 import {DialogService} from "../../services/dialog.service";
 import {Breakpoint, BreakpointType} from "../../classes/breakpoint";
 
+import {PhysicalMemoryView} from '../../classes/ubergrom-inspector';
+
 enum MemoryViewType {
     DISASSEMBLY,
     HEX,
@@ -26,7 +28,10 @@ enum MemoryType {
     VDP,
     SAMS,
     CART,
-    GROM
+    GROM,
+    UBER_RAM,
+    UBER_EEPROM,
+    UBER_FLASH
 }
 
 @Component({
@@ -123,6 +128,7 @@ export class DebuggerComponent implements OnInit, OnChanges, OnDestroy {
                 this.stopUpdate();
                 this.updateDebugger(true);
                 break;
+            case ConsoleEventType.CARTRIDGE_CHANGED:
             case ConsoleEventType.STATE_RESTORED:
                 this.updateDebugger(true);
                 break;
@@ -210,8 +216,9 @@ export class DebuggerComponent implements OnInit, OnChanges, OnDestroy {
         let memoryView: MemoryView;
         const width = narrow ? 8 : 16;
         const memoryDevice = this.getMemoryDevice(memoryType);
-        if (this.ti994A.isRunning()) {
-            // Running
+        if (this.ti994A.isRunning() || memoryType >= MemoryType.UBER_RAM) {
+            // Physical viewers show a bounded window even when stopped. Jump
+            // with View Address instead of rendering the entire AVR image.
             const viewAddress = this.getViewAddress(memoryType === MemoryType.CPU ? 0x8300 : 0);
             memoryView = memoryDevice.hexView(viewAddress, 512, width, viewAddress);
         } else {
@@ -259,6 +266,12 @@ export class DebuggerComponent implements OnInit, OnChanges, OnDestroy {
 
     private getMemoryDevice(memoryType: MemoryType): MemoryDevice {
         const memory = this.ti994A.getMemory();
+        if (memoryType >= MemoryType.UBER_RAM) {
+            const device = memory.getCartridge()?.getUberGrom();
+            if (!device) return this.nullMemoryDevice;
+            return new PhysicalMemoryView(memoryType === MemoryType.UBER_RAM ? device.ram :
+                memoryType === MemoryType.UBER_EEPROM ? device.eeprom : device.flash);
+        }
         switch (memoryType) {
             case MemoryType.CPU:
                 return memory;
@@ -296,7 +309,21 @@ export class DebuggerComponent implements OnInit, OnChanges, OnDestroy {
         this.updateDebugger(true);
     }
 
+    protected uberMemoryDescription(): string {
+        if (this.memoryType() < MemoryType.UBER_RAM) return '';
+        if (!this.ti994A?.getMemory().getCartridge()?.getUberGrom()) return 'No UberGROM loaded.';
+        const range = this.memoryType() === MemoryType.UBER_RAM ? '>0000->3BFF (15 KiB RAM)' :
+            this.memoryType() === MemoryType.UBER_EEPROM ? '>0000->0FFF (4 KiB EEPROM)' :
+            '>00000->1FFFF (128 KiB ATmega Flash, including firmware)';
+        return 'Read-only physical offsets ' + range + '. Viewing does not access GROM ports.';
+    }
+
     protected onMemoryTypeChanged() {
+        if (this.memoryType() >= MemoryType.UBER_RAM) {
+            this.addressDigits.set(this.memoryType() === MemoryType.UBER_FLASH ? 5 : 4);
+            this.viewAddress.set(0);
+            this.memoryViewType.set(MemoryViewType.HEX);
+        }
         switch (this.memoryType()) {
             case MemoryType.CPU:
                 this.addressDigits.set(4);

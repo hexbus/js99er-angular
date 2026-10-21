@@ -18,6 +18,7 @@ import {AudioService} from "../../services/audio.service";
 import {DatabaseService} from "../../services/database.service";
 import {ConsoleEvent, ConsoleEventType} from "../../classes/console-event";
 import {Breakpoint} from "../../classes/breakpoint";
+import {UberGromStorage} from "../../classes/ubergrom-storage";
 
 @Component({
     selector: 'app-console',
@@ -41,6 +42,7 @@ export class ConsoleComponent implements OnInit, AfterViewInit, OnDestroy {
     private commandSubscription: Subscription;
     private eventSubscription: Subscription;
     private pointerLocked = false;
+    private softwareLoad = 0;
     private log: Log = Log.getLog();
 
     constructor(
@@ -149,17 +151,21 @@ export class ConsoleComponent implements OnInit, AfterViewInit, OnDestroy {
             case CommandType.RESET:
                 this.reset();
                 break;
-            case CommandType.LOAD_MODULE:
+            case CommandType.LOAD_MODULE: {
+                const load = ++this.softwareLoad;
                 this.softwareService.loadModuleFromFiles(command.data).subscribe(
                     (module) => {
-                        this.ti994A.loadSoftware(module);
-                        this.saveLatestSoftware(module);
+                        this.installSoftware(module, load).then(installed => {
+                            if (installed) this.saveLatestSoftware(module);
+                        })
+                            .catch(error => this.log.error(String(error)));
                     },
                     (error) => {
                         this.log.error(error);
                     }
                 );
                 break;
+            }
             case CommandType.LOAD_DISK: {
                     const data = command.data;
                     const diskDrive = this.ti994A.getDiskDrives()[data.driveIndex];
@@ -178,7 +184,8 @@ export class ConsoleComponent implements OnInit, AfterViewInit, OnDestroy {
                 break;
             case CommandType.LOAD_SOFTWARE: {
                     const software: Software = command.data.software;
-                    this.ti994A.loadSoftware(software);
+                    this.installSoftware(software, ++this.softwareLoad).then(installed => {
+                    if (!installed) return;
                     this.ti994A.getMemory().setPADWord(0x83C0, Math.floor(Math.random() * 0xFFFF));
                     this.zone.runOutsideAngular(
                         () => {
@@ -187,11 +194,16 @@ export class ConsoleComponent implements OnInit, AfterViewInit, OnDestroy {
                     );
                     this.eventDispatcherService.started(false);
                     this.saveLatestSoftware(software);
+                    }).catch(error => this.log.error(String(error)));
                 }
                 break;
             case CommandType.UNLOAD_SOFTWARE: {
                 const software = new Software();
+                ++this.softwareLoad;
+                const device = this.ti994A.getMemory().getCartridge()?.getUberGrom();
+                if (device) UberGromStorage.save(device).catch(error => this.log.error('UberGROM save failed: ' + error));
                 this.ti994A.loadSoftware(software);
+                this.eventDispatcherService.sendAsyncEvent(ConsoleEventType.CARTRIDGE_CHANGED, null);
                 this.saveLatestSoftware(software);
                 break;
             }
@@ -373,6 +385,10 @@ export class ConsoleComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     onEvent(event: ConsoleEvent) {
+        if (event.type === ConsoleEventType.STATE_RESTORED) {
+            ++this.softwareLoad;
+            this.attachUberGromPersistence();
+        }
         if (event.type === ConsoleEventType.SETTINGS_RESTORED) {
             const settings = this.settingsService.getSettings();
             this.canvasPixelated = settings.isPixelatedEnabled();
@@ -383,6 +399,45 @@ export class ConsoleComponent implements OnInit, AfterViewInit, OnDestroy {
 
     saveLatestSoftware(software: Software) {
         this.databaseService.putSoftware(ConsoleComponent.LATEST_SOFTWARE, software);
+    }
+
+    private async installSoftware(software: Software, load: number): Promise<boolean> {
+        if (load !== this.softwareLoad) return false;
+        const previous = this.ti994A.getMemory().getCartridge()?.getUberGrom();
+        if (previous) await UberGromStorage.save(previous);
+        await UberGromStorage.prepare(software);
+        if (load !== this.softwareLoad) return false;
+        // The old cartridge may have written more data while IndexedDB was busy.
+        // Snapshot it at the actual switch; a reload of that same package must
+        // use this final data rather than the earlier database read.
+        if (previous) {
+            if (software.ubergrom?.storageKey === previous.storageKey && previous.storageKey) {
+                software.ubergrom = previous.exportImage();
+            }
+            UberGromStorage.save(previous).catch(error => this.log.error('UberGROM save failed: ' + error));
+        }
+        this.ti994A.loadSoftware(software);
+        this.eventDispatcherService.sendAsyncEvent(ConsoleEventType.CARTRIDGE_CHANGED, null);
+        this.attachUberGromPersistence();
+        return true;
+    }
+
+    private attachUberGromPersistence() {
+        const device = this.ti994A.getMemory().getCartridge()?.getUberGrom();
+        if (device) {
+            let scheduled = false;
+            device.onPersistentChange = () => {
+                if (!scheduled) {
+                    scheduled = true;
+                    // Coalesce writes from one CPU slice; persist before a later
+                    // package reload. Export remains available for backups.
+                    queueMicrotask(() => {
+                        scheduled = false;
+                        UberGromStorage.save(device).catch(error => this.log.error('UberGROM save failed: ' + error));
+                    });
+                }
+            };
+        }
     }
 
     onMediaRecorderDataAvailable(event: BlobEvent) {

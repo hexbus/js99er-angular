@@ -1,5 +1,6 @@
 import {Software} from '../classes/software';
 import {gigacartOptions} from '../classes/gigacart';
+import {UberGrom} from '../emulator/classes/ubergrom';
 import {Log} from '../classes/log';
 import {HttpClient} from '@angular/common/http';
 import {Injectable} from '@angular/core';
@@ -89,7 +90,7 @@ export class ModuleService {
         } else {
             url = 'assets/' + url;
         }
-        if (url.substring(url.length - 3).toLowerCase() === 'rpk') {
+        if (['rpk', 'zip'].includes(url.substring(url.length - 3).toLowerCase())) {
             return this.loadRPKOrZipModuleFromURL(url);
         } else if (url.substring(url.length - 3).toLowerCase() === 'bin') {
             return this.loadBinModuleFromURL(url);
@@ -114,6 +115,19 @@ export class ModuleService {
         const subject = new Subject<Software>();
         new ZipReader(reader).getEntries().then(
             (entries: Entry[]) => {
+                const uberManifest = entries.find(entry => entry.filename === 'ubergrom.json');
+                if (uberManifest) {
+                    if (entries.filter(entry => entry.filename === 'ubergrom.json').length !== 1 ||
+                        uberManifest.uncompressedSize > 16384) {
+                        subject.error(new Error('Duplicate or oversized UberGROM manifest.'));
+                        return;
+                    }
+                    this.loadUberGrom(uberManifest, entries).then(module => {
+                        subject.next(module);
+                        subject.complete();
+                    }).catch(error => subject.error(error));
+                    return;
+                }
                 let layoutEntry = null;
                 entries.forEach((entry) => {
                     // this.log.info(entry.filename);
@@ -134,6 +148,29 @@ export class ModuleService {
             }
         );
         return subject.asObservable();
+    }
+
+    private async loadUberGrom(manifest: Entry, entries: Entry[]): Promise<Software> {
+        const data = JSON.parse(await manifest.getData!(new TextWriter()));
+        if (data.format !== 'js99er-ubergrom-1') throw new Error('Unsupported UberGROM package format.');
+        const read = async (name: string, sizes: number[]) => {
+            const matches = entries.filter(e => e.filename === name && !e.directory);
+            if (matches.length !== 1 || !sizes.includes(matches[0].uncompressedSize)) {
+                throw new Error('Missing, duplicate or incorrectly sized UberGROM image: ' + name);
+            }
+            const blob = await matches[0].getData!(new BlobWriter());
+            return new Uint8Array(await blob.arrayBuffer());
+        };
+        const module = new Software();
+        module.name = data.name || 'UberGROM';
+        module.ubergrom = {
+            flash: await read(data.flash, [122880, 131072]),
+            eeprom: await read(data.eeprom, [4096]),
+            writeProtected: !!data.writeProtected
+        };
+        if (data.rom) module.rom = await read(data.rom, [8192, 16384, 32768, 65536, 131072, 262144, 524288]);
+        new UberGrom(module.ubergrom);
+        return module;
     }
 
     loadRPKModule(layoutEntry: Entry, entries: Entry[], subject: Subject<Software>) {

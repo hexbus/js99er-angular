@@ -1,0 +1,190 @@
+<div class="ubergrom-settings">
+  @if (device) {
+    <section aria-labelledby="ug-cartridge-title">
+      <h2 id="ug-cartridge-title">Cartridge</h2>
+      <p class="hint">Flash and EEPROM changes are saved in this browser. Export a backup to keep a copy.</p>
+      <label class="check-row">
+        <input type="checkbox" [(ngModel)]="device.writeProtected" aria-describedby="ug-protection-help">
+        <span>JP4 write protection</span>
+      </label>
+      <p id="ug-protection-help" class="hint">When enabled, TI programs cannot change Flash memory or the EEPROM configuration. This also prevents saving files to Flash. The EEPROM user-data area remains writable.</p>
+      <div class="actions"><button type="button" (click)="export()">Export current cartridge</button></div>
+      <p class="hint">Use GROMCFG on the TI to configure memory mappings and program the cartridge.</p>
+      @if (device.canUseRecovery()) {
+        <label class="check-row">
+          <input type="checkbox" [ngModel]="device.isRecoveryActive()" (ngModelChange)="device.selectRecovery($event)" aria-describedby="ug-recovery-help">
+          <span>Use recovery mode</span>
+        </label>
+        <p id="ug-recovery-help" class="hint">Show Easy Bug and Run Program File instead of the normal cartridge menu.
+          Press Reset after changing this option. This selects the mode for this session without changing EEPROM.
+          You can also hold Space when the cartridge first starts.</p>
+      }
+      <p class="hint recovery">Recovery loader: {{device.recoveryStatus()}}.</p>
+    </section>
+
+    <section aria-labelledby="ug-mapping-title">
+      <h2 id="ug-mapping-title">Memory and device mappings</h2>
+      <p class="hint">Each GROM base has five cartridge slots. Each slot can point to memory or a board service.
+        This read-only view follows the EEPROM settings; use GROMCFG to change them.</p>
+      <details>
+        <summary>Inspect GROM base and slot mappings</summary>
+        <div class="fields"><label>GROM base
+          <select [(ngModel)]="mappingBase">
+            @for (base of mappingBases; track base) { <option [ngValue]="base">Base {{base}} ({{hex(38912 + base * 4)}})</option> }
+          </select>
+        </label></div>
+        <p class="hint">CPU data ports: read {{hex(38912 + mappingBase * 4)}}, write {{hex(39936 + mappingBase * 4)}}.
+          Slot addresses below are GROM addresses, not CPU addresses.</p>
+        @if (mappings(); as mapping) {
+          @if (!mapping.flagsValid) { <p class="hint">The flags check byte is invalid. The board uses default flags.</p> }
+          <p class="hint">{{mapping.basesEnabled ? 'Independent base mappings enabled.' : 'Base selection disabled: every base uses the mappings from base 0.'}}</p>
+          <div class="mapping-table-wrap">
+            <table class="mapping-table">
+              <caption>Configured mappings from base {{mapping.sourceBase}}</caption>
+              <thead><tr><th scope="col">Slot / GROM address</th><th scope="col">Type / destination</th><th scope="col">Raw / check</th></tr></thead>
+              <tbody>
+                @for (row of mapping.rows; track row.slot) {
+                  <tr><th scope="row">{{row.slot}}<small>{{row.range}}</small></th>
+                    <td>{{row.type}}<small>{{row.detail}}</small></td>
+                    <td><code>{{row.raw}} / {{row.check}}</code><small>EEPROM {{row.offset}} / {{row.checkOffset}}</small></td></tr>
+                }
+                @if (mappingBase === 15) {
+                  <tr><th scope="row">7 (reserved)<small>&gt;F800 - &gt;FFFF</small></th>
+                    <td>Configuration access<small>EEPROM &gt;0000 - &gt;07FF. Writes to &gt;FFFF control the unlock sequence.</small></td>
+                    <td>Fixed overlay<small>Overrides the last 2 KiB of slot 7.</small></td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        <p class="hint">Slots 0-2 belong to the console; UberGROM does not map them.
+          Base 15 always exposes configuration access at &gt;F800-&gt;FFFF, overriding that part of slot 7.</p>
+        <p class="hint">The recovery loader can temporarily override these configured mappings. Recovery loader: {{device.recoveryStatus()}}.</p>
+      </details>
+      <p class="hint">To inspect stored bytes, open Debugger and choose UberGROM RAM, UberGROM EEPROM, or ATmega Flash under Memory type.
+        These views show physical offsets and do not read through the GROM ports.</p>
+    </section>
+
+    @let activeSerial = device.serialSettings();
+    <section aria-labelledby="ug-serial-title">
+      <h2 id="ug-serial-title">Serial connection</h2>
+      <label class="check-row modem-option">
+        <input type="checkbox" [ngModel]="wifiModem" (ngModelChange)="setWifiModem($event)"
+          [disabled]="!wifiModemAvailable" aria-describedby="ug-modem-help">
+        <span>Wi-Fi modem</span>
+      </label>
+      @if (wifiModem) {
+        <p id="ug-modem-help" class="hint">Use your TI program to dial. In Telco or TIMXT, type <code>AT</code> and press Enter to check the modem.
+          Dial with <code>ATDTbbs.net</code> or <code>ATDTbbs.net:2323</code>.</p>
+      } @else if (!wifiModemAvailable) {
+        <p id="ug-modem-help" class="hint">Wi-Fi modem is available in the local build. A hosted website needs its own modem service.</p>
+      } @else {
+        <p id="ug-modem-help" class="hint">Enable this to dial a BBS from your TI terminal program.</p>
+      }
+      @if (!wifiModem) {
+        <div class="fields">
+          <label>Connection
+            <select [(ngModel)]="mode">
+              <option value="terminal">Local serial terminal</option>
+              <option value="loopback">Serial loopback test</option>
+              <option value="websocket">External WebSocket service</option>
+            </select>
+          </label>
+          @if (mode === 'websocket') {
+            <label>Bridge address <input [(ngModel)]="endpoint"></label>
+          }
+        </div>
+      }
+      <div class="connection-actions">
+        <div><span class="hint">{{wifiModem ? 'Modem service' : 'Serial connection'}}</span><p role="status">{{status}}</p></div>
+        <div class="actions">
+          <button type="button" (click)="connect()">Connect</button>
+          <button type="button" (click)="disconnect()">Disconnect</button>
+        </div>
+      </div>
+      <div class="live-serial">
+        <h3>Current serial port</h3>
+        <p><strong>{{activeSerial.baud | number:'1.0-2'}} baud</strong> · {{activeSerial.dataBits}} data bits ·
+          {{activeSerial.parity}} parity · {{activeSerial.stopBits}} stop bit(s)</p>
+        <p class="hint">Normally, set the speed and format in Telco or TIMXT. js99er follows automatically; you do not need to set them twice.</p>
+      </div>
+      <details (toggle)="onSerialSettingsToggle($event)">
+        <summary>Advanced: override serial settings</summary>
+        <p class="hint">Use this only to set the port from js99er instead of your TI program. These fields start with the current settings.
+          Changes take effect when you choose Apply serial settings; your TI program can change them again later.</p>
+        <div class="fields serial-fields">
+          <label>Baud rate
+            <input type="number" min="123" max="1000000" step="any" [(ngModel)]="serial.baud" list="ubergrom-baud-rates">
+            <datalist id="ubergrom-baud-rates">
+              @for (rate of [300,600,1200,2400,4800,9600,19200,38400,57600,115200]; track rate) {
+                <option [value]="rate"></option>
+              }
+            </datalist>
+          </label>
+          <label>Data bits <select [(ngModel)]="serial.dataBits">
+            @for (bits of [5,6,7,8]; track bits) { <option [ngValue]="bits">{{bits}}</option> }
+          </select></label>
+          <label>Parity <select [(ngModel)]="serial.parity">
+            <option value="none">None</option><option value="even">Even</option><option value="odd">Odd</option>
+          </select></label>
+          <label>Stop bits <select [(ngModel)]="serial.stopBits">
+            <option [ngValue]="1">1</option><option [ngValue]="2">2</option>
+          </select></label>
+        </div>
+        <div class="actions">
+          <button type="button" (click)="useCurrentSerial()">Copy current settings</button>
+          <button type="button" (click)="applySerial()">Apply serial settings</button>
+        </div>
+        <p class="hint">The actual speed can be slightly different from the requested speed. For example, a 38,400 setting runs at about 38,462 baud.</p>
+      </details>
+      @if (!wifiModem && mode !== 'websocket') {
+        <details>
+          <summary>Test serial input and output</summary>
+          <p class="hint">Without a modem, send text to the TI program or see what it sends back.</p>
+          <div class="fields single-column">
+            <label>Serial output <textarea rows="6" readonly [value]="output"></textarea></label>
+            <label>Send serial text <input [(ngModel)]="text" (keydown.enter)="send()"></label>
+            <label>Line ending <select [(ngModel)]="lineEnding">
+              <option [ngValue]="''">None</option><option [ngValue]="'\r'">CR (Return)</option>
+              <option [ngValue]="'\n'">LF</option><option [ngValue]="'\r\n'">CR + LF</option>
+            </select></label>
+          </div>
+          <div class="actions"><button type="button" (click)="send()">Send</button></div>
+        </details>
+        <details>
+          <summary>Advanced: ADC and GPIO test inputs</summary>
+          <p class="hint">Simulate signals connected to the board. ADC values are raw 8-bit readings (0–255), not voltages. GPIO uses the lowest four bits, one per pin.</p>
+          <div class="fields">
+            @for (value of adc; track $index; let channel = $index) {
+              <label>ADC {{channel}} · raw {{adc[channel]}}
+                <input type="range" min="0" max="255" step="1" [(ngModel)]="adc[channel]">
+              </label>
+            }
+            <label>GPIO input bits (0–15) <input type="number" min="0" max="15" [(ngModel)]="gpioInput"></label>
+          </div>
+          <dl class="raw-values">
+            <div><dt>GPIO input</dt><dd>{{gpioInput || 0}} &middot; {{rawGPIO(gpioInput)}}</dd></div>
+            <div><dt>GPIO output</dt><dd>{{gpioOutput}} &middot; {{rawGPIO(gpioOutput)}}</dd></div>
+            <div><dt>Direction</dt><dd>{{gpioDirection}} &middot; {{rawGPIO(gpioDirection)}}</dd></div>
+          </dl>
+          <p class="hint">Bits run from pin 3 on the left to pin 0 on the right. A direction bit of 1 means output; 0 means input.
+            Input values affect input pins; output values and direction are set by the TI program.</p>
+        </details>
+      }
+    </section>
+    <p class="hint service-note">RAM and timer services are controlled by TI software. They do not need browser settings.</p>
+    <details class="create-cartridge">
+      <summary>Create a cartridge</summary>
+      <p class="hint">Create empty cartridge space with the original recovery firmware intact. EASYbug and Run Program File remain available to load GROMCFG from disk. This replaces the active cartridge.</p>
+      <div class="actions"><button type="button" (click)="blank()" [disabled]="creatingBlank">Create blank virtual UberGROM</button></div>
+    </details>
+  } @else {
+    <section aria-labelledby="ug-empty-title">
+      <h2 id="ug-empty-title">UberGROM</h2>
+      <p>Choose <b>Load cart</b> to open an UberGROM ZIP, or create a blank board with recovery firmware to load GROMCFG from disk.</p>
+      <div class="actions"><button type="button" (click)="blank()" [disabled]="creatingBlank">Create blank virtual UberGROM</button></div>
+      <p class="hint">{{status}}</p>
+    </section>
+  }
+  @if (blankStatus) { <p role="status">{{blankStatus}}</p> }
+</div>

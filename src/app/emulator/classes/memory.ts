@@ -108,6 +108,7 @@ export class Memory implements Stateful, MemoryDevice {
 
     public setCartridge(cartridge: Cartridge | null) {
         if (this.cartridge) {
+            this.cartridge.getUberGrom()?.setConnection();
             this.console.getCRU().deregisterCruDevice(this.cartridge);
         }
         this.cartridge = cartridge;
@@ -469,7 +470,19 @@ export class Memory implements Stateful, MemoryDevice {
             // Get GROM address
             value = this.grom.readAddress();
         }
-        if (this.cartridge && this.cartridge.hasGROM()) {
+        const uber = this.cartridge?.getUberGrom();
+        if (uber) {
+            uber.syncClock(cpu.getCycles());
+            const cartAddress = uber.getAddress();
+            cpu.addCycles(uber.getAccessWaitCycles(addr, false));
+            const cartValue = uber.readPort(addr);
+            cpu.addCycles(uber.takeWaitCycles());
+            if (!(addr & 2) && cartAddress >= 0x6000) {
+                // An unmapped UberGROM device releases the bus. Preserve the
+                // console-side value, as for an absent cartridge GROM.
+                value = cartValue ?? value;
+            }
+        } else if (this.cartridge && this.cartridge.hasGROM()) {
             const cartValue = this.cartridge.readGROM(addr);
             if (gromAddr >= 0x6001) {
                 value = cartValue;
@@ -479,12 +492,19 @@ export class Memory implements Stateful, MemoryDevice {
     }
 
     private writeGROM(addr: number, w: number, cpu: CPU) {
+        const uber = this.cartridge?.getUberGrom();
+        uber?.syncClock(cpu.getCycles());
+        if (uber) cpu.addCycles(uber.getAccessWaitCycles(addr, true));
         cpu.addCycles(23 + 6);
         const maskedAddr = addr & 0x9C02;
         if (maskedAddr === Memory.GRMWD) {
             if (this.settings.isGRAMEnabled()) {
                 // Write data to GROM
                 this.grom.writeData(w);
+            } else if (uber) {
+                // Console GROM counters still advance on a data write, even
+                // though their ROM contents cannot be changed.
+                this.grom.prefetchAndIncrementAddress();
             }
         } else if (maskedAddr === Memory.GRMWA) {
             // Set GROM address
@@ -493,6 +513,7 @@ export class Memory implements Stateful, MemoryDevice {
         if (this.cartridge) {
             this.cartridge.writeGROM(addr, w);
         }
+        if (uber) cpu.addCycles(uber.takeWaitCycles());
     }
 
     private readNull(addr: number, cpu: CPU): number {

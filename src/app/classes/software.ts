@@ -1,5 +1,6 @@
 import {Util} from "./util";
 import {GigacartOptions} from "./gigacart";
+import {UberGromImage} from "../emulator/classes/ubergrom";
 
 export class MemoryBlock {
 
@@ -31,6 +32,7 @@ export class MemoryBlock {
 export class Software {
 
     gigacartOptions?: GigacartOptions;
+    ubergrom?: UberGromImage;
 
     private _name: string;
     private _inverted: boolean;
@@ -62,6 +64,13 @@ export class Software {
         this.cruBankSwitched = !!data.cruBankSwitched;
         this.gigacart = !!data.gigacart;
         this.gigacartOptions = data.gigacartOptions;
+        if (data.ubergrom) {
+            this.ubergrom = {
+                flash: Util.hexArrayToByteArray(data.ubergrom.flash),
+                eeprom: Util.hexArrayToByteArray(data.ubergrom.eeprom),
+                writeProtected: !!data.ubergrom.writeProtected
+            };
+        }
         if (data.startAddress) {
             this.startAddress = Util.parseNumber(data.startAddress);
         }

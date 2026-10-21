@@ -1,5 +1,6 @@
 export enum ConsoleEventType {
     READY = "Ready",
+    CARTRIDGE_CHANGED = "Cartridge changed",
     STARTED = "Started",
     STOPPED = "Stopped",
     SCREENSHOT_TAKEN = "Screenshot taken",

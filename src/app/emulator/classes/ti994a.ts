@@ -394,6 +394,7 @@ export class TI994A implements Console, Stateful {
                 }
             }
             this.cyclesSubject.next(TMS9900.CYCLES_PER_SCANLINE);
+            this.memory.getCartridge()?.getUberGrom()?.syncClock(cpu.getCycles());
             cyclesToRun -= cyclesPerScanline;
             skipBreakpoint = false;
         }
@@ -407,6 +408,7 @@ export class TI994A implements Console, Stateful {
 
     step() {
         this.activeCPU.run(1, true);
+        this.memory.getCartridge()?.getUberGrom()?.syncClock(this.cpu.getCycles());
     }
 
     stepOver() {

@@ -24,14 +24,17 @@
         <mat-option [value]="2">SAMS</mat-option>
         <mat-option [value]="3">Cartridge</mat-option>
         <mat-option [value]="4">GROM</mat-option>
+        <mat-option [value]="5">UberGROM RAM</mat-option>
+        <mat-option [value]="6">UberGROM EEPROM</mat-option>
+        <mat-option [value]="7">ATmega Flash</mat-option>
       </mat-select>
     </mat-form-field>
     <hex-input-field class="address-field" [digits]="addressDigits()" [model]="viewAddress()" [placeholder]="'View Address'" (modelChange)="onViewAddressChanged($event)"></hex-input-field>
     <hex-input-field class="address-field" [digits]="addressDigits()" [model]="breakpoint().addr" [placeholder]="'Breakpoint'" (modelChange)="onBreakpointAddressChanged($event)"></hex-input-field>
     <button mat-mini-fab color="default" (click)="openDialog()"><fa-icon [icon]="faCogs"></fa-icon></button>
+    @if (memoryType() >= 5) { <p class="memory-help">{{uberMemoryDescription()}}</p> }
   </div>
   <pre [hidden]="memoryViewType() === 2" class="memory-view mat-elevation-z1" id="memory" (click)="onMemoryViewClicked($event)">{{ memoryString() }}</pre>
   <pre [hidden]="memoryViewType() !== 2" class="memory-view-1 mat-elevation-z1" id="memory1" (click)="onMemoryViewClicked($event)">{{ memoryString() }}</pre>
   <pre [hidden]="memoryViewType() !== 2" class="memory-view-2 mat-elevation-z1" id="memory2">{{ memoryString2() }}</pre>
 </div>
-0

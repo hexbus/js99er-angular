@@ -327,6 +327,8 @@ export class TMS9918A implements VDP {
 
     writeData(i: number) {
         this.ram[this.addressRegister++] = i;
+        // A data write also loads the read buffer (used by TELCO's VRAM probe).
+        this.prefetchByte = i;
         this.addressRegister &= this.ramMask;
     }
 

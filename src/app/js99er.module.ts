@@ -31,6 +31,7 @@ import {LogComponent} from './components/log/log.component';
 import {KeyboardComponent} from './components/keyboard/keyboard.component';
 import {DiskComponent} from './components/disk/disk.component';
 import {TapeComponent} from './components/tape/tape.component';
+import {UberGromComponent} from './components/ubergrom/ubergrom.component';
 import {SoftwareMenuComponent} from './components/software-menu/software-menu.component';
 import {MoreSoftwareComponent} from './components/more-software/more-software.component';
 import {AboutComponent} from './components/about/about.component';
@@ -58,6 +59,7 @@ import {ErrorDialogComponent} from "./components/error-dialog/error-dialog.compo
         KeyboardComponent,
         DiskComponent,
         TapeComponent,
+        UberGromComponent,
         SoftwareMenuComponent,
         MoreSoftwareComponent,
         AboutComponent,

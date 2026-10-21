@@ -4,11 +4,17 @@
   "license": "MIT",
   "scripts": {
     "ng": "ng",
-    "serve": "ng serve --configuration development",
+    "serve": "node tools/start-local.cjs",
     "build": "yarn asbuild:release && ng build --configuration production",
     "test": "ng test",
     "test:gigacart": "node tools/gigacart-test.cjs",
     "test:sidmaster": "node tools/sid-master-test.cjs",
+    "test:vdp-ports": "node tools/vdp-port-test.cjs",
+    "test:direct-files": "node tools/direct-file-test.cjs",
+    "test:ubergrom": "node tools/ubergrom-test.cjs",
+    "test:ubergrom-inspector": "node tools/ubergrom-inspector-test.cjs",
+    "test:ubergrom-blank": "node --test tools/ubergrom-blank-test.cjs",
+    "test:modem": "node tools/serial-modem-test.cjs && node --test tools/wifi-modem-test.cjs tools/ubergrom-modem-test.cjs",
     "lint": "ng lint",
     "e2e": "ng e2e",
     "asbuild:debug": "asc assembly/index.ts --target debug --importMemory --memoryBase 98304 --runtime stub",
@@ -63,6 +69,7 @@
     "protractor": "~7.0.0",
     "ts-node": "~10.9.2",
     "tslint": "~6.1.3",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "ws": "8.17.1"
   }
 }

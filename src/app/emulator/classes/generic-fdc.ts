@@ -9,6 +9,7 @@ import {DiskDrive} from "./disk-drive";
 import {VDP} from "../interfaces/vdp";
 import {FDC} from "../interfaces/fdc";
 import {DSRCard} from "../interfaces/dsr-card";
+import {DirectFileAccess} from './direct-file-access';
 
 export const GENERIC_FDC_DSR_ROM: number[] = [
     0xAA,                           // >4000 Standard header
@@ -260,7 +261,10 @@ export class GenericFdc implements FDC, DSRCard {
                 }
                 break;
             case GenericFdc.DSR_ROM_FILE_OUTPUT_15:
-                this.log.warn("Subprogram >15: File Output not implemented");
+                drive = this.memory.getPADByte(0x834C) - 1;
+                if (drive >= 0 && drive < diskDrives.length) {
+                    this.fileOutput(diskDrives[drive]);
+                }
                 break;
             case GenericFdc.DSR_ROM_FILES_16:
                 this.setFiles(this.memory.getPADByte(0x834C));
@@ -709,46 +713,58 @@ export class GenericFdc implements FDC, DSRCard {
     }
 
     fileInput(diskDrive: DiskDrive) {
-        const memory = this.memory;
-        const vdp = this.console.getVDP();
-        const sectors = memory.getPADWord(0x834C) & 0xFF;
-        const fileNameAddr = memory.getPADWord(0x834E);
-        let fileName = "";
-        for (let i = 0; i < 10; i++) {
-            fileName += String.fromCharCode(vdp.getByte(fileNameAddr + i));
-        }
-        fileName = fileName.trim();
+        this.directFileIO(diskDrive, false);
+    }
+
+    fileOutput(diskDrive: DiskDrive) {
+        this.directFileIO(diskDrive, true);
+    }
+
+    private directFileIO(diskDrive: DiskDrive, write: boolean) {
+        const memory = this.memory, vdp = this.console.getVDP();
+        const requested = memory.getPADByte(0x834D);
+        const nameAddr = memory.getPADWord(0x834E);
         const infoAddr = 0x8300 | memory.getPADByte(0x8350);
-        const diskImage = diskDrive.getDiskImage();
-        if (diskImage != null) {
-            const file = diskImage.getFile(fileName);
-            if (sectors !== 0) {
-                const bufferAddr = memory.getPADWord(infoAddr);
-                const firstSector = memory.getPADWord(infoAddr + 2);
-                this.log.info("Reading file " + diskDrive.getName() + "." + fileName + " sectors " + firstSector + "-" + (firstSector + sectors - 1) + " to VDP " + Util.toHexWord(bufferAddr));
-                if (file.getFileType() === FileType.PROGRAM) {
-                    const program = file.getProgram();
-                    if (program) {
-                        for (let i = 0; i < sectors * 256; i++) {
-                            vdp.setByte(bufferAddr + i, program[firstSector * 256 + i]);
-                        }
-                    }
-                } else {
-                    this.log.warn("File input only implemented for program files");
-                }
-                memory.setPADByte(0x834c, 0);
-                memory.setPADByte(0x834d, sectors);
-                memory.setPADByte(0x8350, 0);
-            } else {
-                this.log.info("Request file info for " + diskDrive.getName() + "." + fileName);
-                memory.setPADWord(infoAddr + 2, file.getSectorCount());
-                memory.setPADByte(infoAddr + 4, (file.getRecordType() << 7) | (file.getDataType() << 1) | file.getFileType());
-                memory.setPADByte(infoAddr + 5, file.getFileType() === FileType.DATA ? Math.floor(256 / (file.getRecordLength() + (file.getRecordType() === RecordType.VARIABLE ? 1 : 0))) : 0);
-                memory.setPADByte(infoAddr + 6, file.getEOFOffset());
-                memory.setPADByte(infoAddr + 7, file.getFileType() === FileType.DATA ? file.getRecordLength() : 0);
-                memory.setPADByte(infoAddr + 8, file.getFileType() === FileType.DATA ? (file.getRecordType() === RecordType.FIXED ? file.getRecordCount() : file.getSectorCount()) : 0);
-            }
+        const name = Array.from({length: 10}, (_, i) => String.fromCharCode(vdp.getByte(nameAddr + i))).join('').trim();
+        const image = diskDrive.getDiskImage();
+        const finish = (error: number, count = 0) => {
+            memory.setPADByte(0x834D, count);
+            memory.setPADByte(0x8350, error << 5);
+        };
+        if (!image) { finish(DiskError.DEVICE_ERROR); return; }
+        if (write && requested === 0) {
+            const info = Uint8Array.from({length: 8}, (_, i) => memory.getPADByte(infoAddr + 2 + i));
+            finish(DirectFileAccess.create(image, name, info));
+            return;
         }
+        const file = DirectFileAccess.find(image, name);
+        if (!file) { finish(DiskError.FILE_ERROR); return; }
+        const {bytes, fd, sectors, count} = file;
+        if (sectors.length !== count || sectors.some(s => s < 2 || (s + 1) * 256 > bytes.length)) {
+            finish(DiskError.FILE_ERROR); return;
+        }
+        if (!requested) {
+            memory.setPADWord(infoAddr + 2, count);
+            for (const [to, from] of [[4, 12], [5, 13], [6, 16], [7, 17], [8, 18], [9, 19]]) {
+                memory.setPADByte(infoAddr + to, bytes[fd + from]);
+            }
+            finish(0);
+            return;
+        }
+        if (write && (bytes[16] === 0x50 || (bytes[fd + 12] & 8))) { finish(DiskError.WRITE_PROTECTED); return; }
+        const first = memory.getPADWord(infoAddr + 2), buffer = memory.getPADWord(infoAddr);
+        const actual = Math.min(requested, Math.max(0, count - first));
+        if (!actual) { finish(DiskError.READ_PAST_END); return; }
+        // Preserve all other files and opaque level-2 bytes; do not round-trip
+        // through logical records while an incoming transfer is incomplete.
+        const target = write ? bytes.slice() : bytes;
+        for (let s = 0; s < actual; s++) for (let i = 0; i < 256; i++) {
+            const offset = sectors[first + s] * 256 + i;
+            if (write) target[offset] = vdp.getByte((buffer + s * 256 + i) & 0x3FFF);
+            else vdp.setByte((buffer + s * 256 + i) & 0x3FFF, target[offset]);
+        }
+        if (write) image.loadBinaryImage(target);
+        finish(0, actual);
     }
 
     createCatalogFile(diskImage: DiskImage | null): DiskFile {

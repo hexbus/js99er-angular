@@ -100,7 +100,7 @@ export class DiskImage implements Stateful {
     }
 
     loadTIFile(fileName: string, fileBuffer: Uint8Array, ignoreTIFileName: boolean): DiskFile | null {
-        if (fileBuffer != null && fileBuffer.length > 0x80) {
+        if (fileBuffer != null && fileBuffer.length >= 0x80) {
             let sectors: number;
             let flags: number;
             let recsPerSector: number;
@@ -112,6 +112,7 @@ export class DiskImage implements Stateful {
             let fileLength: number;
             let sectorOffset: number;
             let pcFormat = false;
+            let level3Records = 0;
             let id = "";
             for (let i = 1; i < 8; i++) {
                 id += String.fromCharCode(fileBuffer[i]);
@@ -140,6 +141,7 @@ export class DiskImage implements Stateful {
                 recsPerSector = fileBuffer[0xB];
                 eofOffset = fileBuffer[0xC];
                 recordLength = fileBuffer[0xD];
+                level3Records = fileBuffer[0xE] | (fileBuffer[0xF] << 8);
                 recordType = (flags & 0x80) >> 7;
                 datatype = (flags & 0x02) >> 1;
                 fileType = (flags & 0x01);
@@ -162,6 +164,7 @@ export class DiskImage implements Stateful {
                 sectors = (fileBuffer[0x0E] << 8) + fileBuffer[0x0F];
                 eofOffset = fileBuffer[0x10];
                 recordLength = fileBuffer[0x11];
+                level3Records = fileBuffer[0x12] | (fileBuffer[0x13] << 8);
                 fileLength = sectors * 256  - (eofOffset > 0 ? 256 - eofOffset : 0);
                 sectorOffset = 0x80;
             } else {
@@ -202,7 +205,7 @@ export class DiskImage implements Stateful {
                     if (recordType === RecordType.FIXED) {
                         if (!pcFormat) {
                             for (sector = 0; sector < sectors; sector++) {
-                                for (rec = 0; rec < recsPerSector; rec++) {
+                                for (rec = 0; rec < recsPerSector && file.getRecordCount() < level3Records; rec++) {
                                     if (sector * 256 + rec * recordLength < fileLength) {
                                         data = [];
                                         for (let i = 0; i < recordLength; i++) {
@@ -298,6 +301,8 @@ export class DiskImage implements Stateful {
             }
             // Content
             this.writeFileToImage(file, data, 0, n);
+            // TIFILES contains whole sectors after its 128-byte header.
+            while (data.length < 128 + file.getSectorCount() * 256) data.push(0);
             return new Uint8Array(data);
         } else {
             return null;
@@ -394,6 +399,7 @@ export class DiskImage implements Stateful {
                 const endOfFileOffset = fileBuffer[fileDescriptorRecord + 0x10];
                 // this.log.info("EOF offset: " + endOfFileOffset);
                 const recordLength = fileBuffer[fileDescriptorRecord + 0x11];
+                const level3Records = fileBuffer[fileDescriptorRecord + 0x12] | (fileBuffer[fileDescriptorRecord + 0x13] << 8);
                 // this.log.info("Logical record length: " + recordLength);
                 const fileLength = fileType === FileType.PROGRAM ? (sectorsAllocated - 1) * 256 + (endOfFileOffset === 0 ? 256 : endOfFileOffset) : recordLength * sectorsAllocated * recordsPerSector;
                 this.log.info(
@@ -410,7 +416,7 @@ export class DiskImage implements Stateful {
                 if (outOfRangeSector) {
                     this.log.warn("Sector out of range: " + outOfRangeSector);
                 }
-                const diskFile = this.readFileFromImage(fileBuffer, fileSectors, fileName, fileType, recordType, recordLength, recordsPerSector, datatype, endOfFileOffset);
+                const diskFile = this.readFileFromImage(fileBuffer, fileSectors, fileName, fileType, recordType, recordLength, recordsPerSector, datatype, endOfFileOffset, level3Records);
                 this.putFile(diskFile);
             }
         }
@@ -505,7 +511,8 @@ export class DiskImage implements Stateful {
         recordLength: number,
         recordsPerSector: number,
         datatype: DataType,
-        endOfFileOffset: number
+        endOfFileOffset: number,
+        level3Records: number
     ): DiskFile {
         let diskFile: DiskFile;
         if (fileType === FileType.DATA) {
@@ -519,7 +526,7 @@ export class DiskImage implements Stateful {
             if (fileType === FileType.DATA) {
                 // Data
                 if (recordType === RecordType.FIXED) {
-                    for (let recordIndex = 0; recordIndex < recordsPerSector; recordIndex++) {
+                    for (let recordIndex = 0; recordIndex < recordsPerSector && diskFile.getRecordCount() < level3Records; recordIndex++) {
                         const data = [];
                         for (let i = 0; i < recordLength; i++) {
                             data.push(fileBuffer[sector * 256 + recordIndex * recordLength + i]);
@@ -583,7 +590,7 @@ export class DiskImage implements Stateful {
                     recCnt++;
                     if (recCnt === recordPerSector) {
                         sectorNo++;
-                        n = sectorNo * 256;
+                        n = sectorNo * 256 + offset;
                         recCnt = 0;
                     }
                 }
@@ -604,7 +611,7 @@ export class DiskImage implements Stateful {
                             }
                         }
                         sectorNo++;
-                        n = sectorNo * 256;
+                        n = sectorNo * 256 + offset;
                         sectorBytesLeft = 256;
                     }
                     n = this.writeByte(dskImg, n, data.length);
