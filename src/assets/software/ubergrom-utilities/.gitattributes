@@ -1,0 +1,2 @@
+# Preserve the exact upstream files and the bytes recorded in SHA256.txt.
+* -text
