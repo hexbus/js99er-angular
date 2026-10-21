@@ -342,7 +342,9 @@ supplies the protocol reference for the private UberHDX application test.
 
 Jon supplied board knowledge, cartridge images and real-system observations.
 The implementation was independently written with OpenAI Codex assistance.
-Reference firmware and third-party application binaries are not bundled here.
+The blank cartridge template includes Tursi's unchanged recovery firmware,
+his original license and credit. Utilities disks and third-party applications
+are not bundled here.
 
 ## Utilities and blank-board checks
 
