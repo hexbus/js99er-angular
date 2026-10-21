@@ -41,7 +41,7 @@ export class SoftwareMenuComponent implements OnInit {
         );
     }
 
-    openSoftware(url: string, diskUrl?: string) {
+    openSoftware(url?: string, diskUrl?: string) {
         if (url) {
             this.moduleService.loadModuleFromURL(url).subscribe({
                 next: (software: Software) => {
@@ -51,18 +51,19 @@ export class SoftwareMenuComponent implements OnInit {
                     this.log.error(error);
                 }
             });
-            if (diskUrl) {
-                this.diskService.fetchDiskFileFromURL(diskUrl).subscribe({
-                    next: (file: File) => {
-                        this.commandDispatcherService.loadDisk(0, [file]);
-                    },
-                    error: (error) => {
-                        this.log.error(error);
-                    }
-                });
-            }
-        } else {
+        } else if (!diskUrl) {
             this.commandDispatcherService.unloadSoftware();
+        }
+        // A disk-only entry mounts tools without replacing the cartridge being programmed.
+        if (diskUrl) {
+            this.diskService.fetchDiskFileFromURL(diskUrl).subscribe({
+                next: (file: File) => {
+                    this.commandDispatcherService.loadDisk(0, [file]);
+                },
+                error: (error) => {
+                    this.log.error(error);
+                }
+            });
         }
     }
 

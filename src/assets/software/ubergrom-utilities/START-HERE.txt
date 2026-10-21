@@ -1,0 +1,60 @@
+UBERGROM UTILITIES
+
+Programs by Mike Brent (Tursi)
+Author: https://harmlesslion.com
+Project: https://github.com/tursilion/ubergrom
+
+In js99er, choose Software > Apps > UberGROM Utilities (disk).
+This mounts the disk in DSK1, replacing the disk currently in that drive.
+Save any disk changes you want to keep first. Your cartridge stays loaded.
+You can also mount UberGROM-Utilities.dsk yourself in DSK1, DSK2 or DSK3.
+
+Keep your UberGROM cartridge loaded and enable 32K expansion RAM.
+In the UberGROM panel, check Use recovery mode, then press Reset.
+At the console menu, choose RUN PROGRAM FILE and enter:
+
+  DSK1.GROMCFG   Configure mappings, inspect memory, load/save cartridge data.
+  DSK1.GROMLOAD  Restore a whole-device file previously saved by GROMCFG.
+  DSK1.GROMTEST  Test board services. OVERWRITES DATA: use a disposable cart.
+
+Change DSK1 to DSK2 or DSK3 if you mounted the disk in that drive.
+GROMCFH and GROMTESU are continuation files; keep them on the disk.
+An E/A option 5 loader can also run these programs if your cartridge has one.
+If no UberGROM is loaded, create one in the UberGROM panel first. A new blank
+board includes recovery firmware. The disk menu does not create or replace it.
+
+GROMTEST clears mapping configuration immediately when launched. Its EEPROM
+and Flash tests also overwrite data. Export your cartridge before testing,
+and use an expendable copy. GROMCFG and GROMLOAD need JP4 protection off for
+protected writes.
+
+GROMTEST's address-wrap test needs different first bytes in physical Flash
+pages 1 and 2; it cannot run on identical blank pages. Run it before Flash.
+GPIO, ADC and UART tests are interactive and need supplied input/output.
+
+All five TI program files are unmodified. GROMCFG, GROMCFH and GROMLOAD come
+from the pinned repository files listed in PROGRAM-SOURCES.json; GROMTEST
+and GROMTESU come from the gromtest.zip release. The older GROMSim archive
+contains differently named/older utilities and is retained as original
+reference material; its GROMCFG disk is not the disk mounted by this menu.
+The original ZIPs are in Original-archives, unchanged. Original-docs contains
+Mike's READMEs, license and manual, also unchanged. The PC-side formatter
+remains in GROMSim.zip; it is not a TI program on this disk.
+
+Original documentation (paths relative to this file):
+  Original-docs/readme.md
+  Original-docs/dist/GROMSim/readme.txt
+  Original-docs/dist/GROMSim/src/gromcfg/readme.txt
+  Original-docs/gromtest/readme.txt
+  Original-docs/dist/GROMSim/formatter/ReadMe.txt
+  Original-docs/dist/GROMSim/UberGROM.pdf
+  Original-docs/Source License.txt
+
+Mike gave Jon permission on 21 October 2026 to distribute the UberGROM
+binary and tools in a package. This permission does not change the original
+license or authorize changes to Mike's programs.
+
+The source materials were obtained from the UberGROM repository at commit
+dcc48184aa02c6a033689fc3471a9d9bfcc7c4c9. SHA256.txt records the bundled disk,
+original archives and documentation. The disk was assembled for js99er;
+it is not presented as a new upstream release from Mike.

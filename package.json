@@ -14,6 +14,7 @@
     "test:ubergrom": "node tools/ubergrom-test.cjs",
     "test:ubergrom-inspector": "node tools/ubergrom-inspector-test.cjs",
     "test:ubergrom-blank": "node --test tools/ubergrom-blank-test.cjs",
+    "test:ubergrom-utilities": "node --test tools/ubergrom-utilities-test.cjs",
     "test:modem": "node tools/serial-modem-test.cjs && node --test tools/wifi-modem-test.cjs tools/ubergrom-modem-test.cjs",
     "lint": "ng lint",
     "e2e": "ng e2e",

@@ -59,7 +59,16 @@ erased application Flash, fresh EEPROM initialized to the firmware's initial
 mappings, and no parallel ROM. Hold Space during startup, or check **Use recovery
 mode** and press **Reset**, to reach **Easy Bug** and **Run Program File**.
 Use Run Program File to load GROMCFG from a mounted disk with 32K RAM enabled.
-GROMCFG itself is not included in the cartridge.
+GROMCFG itself is not included in the cartridge. Choose **Software > Apps >
+UberGROM Utilities (disk)** to mount the bundled tools in DSK1 without changing
+the active cartridge. This replaces the disk in DSK1; save any changes first.
+Run `DSK1.GROMCFG` or `DSK1.GROMLOAD` from recovery. Use `DSK1.GROMTEST` only
+on a disposable cartridge: it clears mappings at startup and overwrites
+EEPROM and Flash during testing.
+
+[Disk instructions and original documentation](../src/assets/software/ubergrom-utilities/START-HERE.txt)
+are included with the disk. The original READMEs, license, manual and release
+archives are preserved unchanged.
 
 The template is `src/assets/software/ubergrom-blank.zip`. It includes Tursi's
 unmodified firmware, attribution and original license. The UberGROM Addendum
@@ -343,15 +352,18 @@ supplies the protocol reference for the private UberHDX application test.
 Jon supplied board knowledge, cartridge images and real-system observations.
 The implementation was independently written with OpenAI Codex assistance.
 The blank cartridge template includes Tursi's unchanged recovery firmware,
-his original license and credit. Utilities disks and third-party applications
-are not bundled here.
+his original license and credit. Mike granted Jon permission on 21 October
+2026 to distribute the UberGROM binary and tools in a package. The utilities
+disk includes unmodified programs and their original documentation.
+Third-party applications such as Telco and TIMXT are not bundled here.
 
 ## Utilities and blank-board checks
 
 Tursi's released GROMTEST passed all eight service tests. GROMCFG programmed
 and verified all 15 application Flash pages, and GROMLOAD restored Flash and
 EEPROM after the test deliberately overwrote user data. These runs used a
-private utilities disk; the disk and its programs are not included here.
+utilities disk that is now bundled here with Mike's permission. The disk bytes
+are unchanged from those tested runs.
 The loose repository GROMTEST build has a Flash pattern-generation mismatch;
 the unchanged gromtest.zip release passed and was used for these checks.
 

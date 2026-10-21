@@ -1,0 +1,41 @@
+{
+  "repository": "https://github.com/tursilion/ubergrom",
+  "commit": "dcc48184aa02c6a033689fc3471a9d9bfcc7c4c9",
+  "files": [
+    {
+      "name": "GROMCFG",
+      "source": "https://raw.githubusercontent.com/tursilion/ubergrom/dcc48184aa02c6a033689fc3471a9d9bfcc7c4c9/dist/GROMSim/gromcfg/GROMCFG",
+      "file_sha256": "b512906b406df0f9e560bc5fe91997b1db19dfb32406528deb2ef4f05076978b",
+      "program_bytes": 8192,
+      "program_sha256": "2e3ef619f7b8985af345c9d08a1110f5bb20c972d5b17b9e5fd2e4f0ed59f9f3"
+    },
+    {
+      "name": "GROMCFH",
+      "source": "https://raw.githubusercontent.com/tursilion/ubergrom/dcc48184aa02c6a033689fc3471a9d9bfcc7c4c9/dist/GROMSim/gromcfg/GROMCFH",
+      "file_sha256": "c884b269239c9bf33d640b4fbfc7f4a5a9942b021e464ccca87a9fcd0ce73191",
+      "program_bytes": 5050,
+      "program_sha256": "d9c1ad1fbd3b0ba413cb93a733c7e562c71521c73c1f251d476663dd19e1cb78"
+    },
+    {
+      "name": "GROMLOAD",
+      "source": "https://raw.githubusercontent.com/tursilion/ubergrom/dcc48184aa02c6a033689fc3471a9d9bfcc7c4c9/dist/GROMSim/gromcfg/GROMLOAD",
+      "file_sha256": "330c773fa24e8f06fd8c5b97452e2f9a5236a8c24d4fe8738d895f63081c4ae8",
+      "program_bytes": 5442,
+      "program_sha256": "30f24a62a4587684fa4a1173569e4618d05daa937004976b779888d1d89da26a"
+    },
+    {
+      "name": "GROMTEST",
+      "source": "Original-archives/gromtest.zip:GROMTEST",
+      "file_sha256": "75df1db03950b27022e3f956a6d963319f1d8685f6baac4bf7f6e41fc4eabcec",
+      "program_bytes": 8192,
+      "program_sha256": "aefb697b33905ccc9975300ed51fbc70105254240dcd900462efc97222ddc868"
+    },
+    {
+      "name": "GROMTESU",
+      "source": "Original-archives/gromtest.zip:GROMTESU",
+      "file_sha256": "a2c0b02c0ca0d5955cb89492f6ed99a794bbc82e709f6d3ed738a10765e40d68",
+      "program_bytes": 2466,
+      "program_sha256": "ec5473764c7110c51b53c793cd7098a79e72649230c194b269168e28922b4d56"
+    }
+  ]
+}
