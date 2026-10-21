@@ -1,6 +1,6 @@
 import {Software} from '../classes/software';
 import {gigacartOptions} from '../classes/gigacart';
-import {UberGrom} from '../emulator/classes/ubergrom';
+import {loadUberGromImages, loadUberGromRpk} from '../classes/ubergrom-package';
 import {Log} from '../classes/log';
 import {HttpClient} from '@angular/common/http';
 import {Injectable} from '@angular/core';
@@ -115,7 +115,13 @@ export class ModuleService {
         const subject = new Subject<Software>();
         new ZipReader(reader).getEntries().then(
             (entries: Entry[]) => {
+                const layouts = entries.filter(entry => entry.filename === 'layout.xml');
                 const uberManifest = entries.find(entry => entry.filename === 'ubergrom.json');
+                if (layouts.length > 1 || (layouts.length && uberManifest) ||
+                    (layouts.length && (layouts[0].directory || layouts[0].uncompressedSize > 65536))) {
+                    subject.error(new Error('Duplicate, ambiguous or oversized cartridge layout.'));
+                    return;
+                }
                 if (uberManifest) {
                     if (entries.filter(entry => entry.filename === 'ubergrom.json').length !== 1 ||
                         uberManifest.uncompressedSize > 16384) {
@@ -153,29 +159,12 @@ export class ModuleService {
     private async loadUberGrom(manifest: Entry, entries: Entry[]): Promise<Software> {
         const data = JSON.parse(await manifest.getData!(new TextWriter()));
         if (data.format !== 'js99er-ubergrom-1') throw new Error('Unsupported UberGROM package format.');
-        const read = async (name: string, sizes: number[]) => {
-            const matches = entries.filter(e => e.filename === name && !e.directory);
-            if (matches.length !== 1 || !sizes.includes(matches[0].uncompressedSize)) {
-                throw new Error('Missing, duplicate or incorrectly sized UberGROM image: ' + name);
-            }
-            const blob = await matches[0].getData!(new BlobWriter());
-            return new Uint8Array(await blob.arrayBuffer());
-        };
-        const module = new Software();
-        module.name = data.name || 'UberGROM';
-        module.ubergrom = {
-            flash: await read(data.flash, [122880, 131072]),
-            eeprom: await read(data.eeprom, [4096]),
-            writeProtected: !!data.writeProtected
-        };
-        if (data.rom) module.rom = await read(data.rom, [8192, 16384, 32768, 65536, 131072, 262144, 524288]);
-        new UberGrom(module.ubergrom);
-        return module;
+        return loadUberGromImages(data, entries);
     }
 
     loadRPKModule(layoutEntry: Entry, entries: Entry[], subject: Subject<Software>) {
         layoutEntry.getData!(
-            new TextWriter('ISO-8859-1')
+            new TextWriter()
         ).then(
             (txt: string) => {
                 const
@@ -187,6 +176,17 @@ export class ModuleService {
                     sockets = xmlDoc.getElementsByTagName('socket'),
                     module: Software = new Software(),
                     observables = [];
+                if (xmlDoc.getElementsByTagName('parsererror').length) {
+                    subject.error(new Error('Invalid RPK XML.'));
+                    return;
+                }
+                if (Array.from(xmlDoc.getElementsByTagName('pcb')).some(board => board.getAttribute('type')?.toLowerCase() === 'ubergrom')) {
+                    loadUberGromRpk(xmlDoc, entries).then(software => {
+                        subject.next(software);
+                        subject.complete();
+                    }).catch(error => subject.error(error));
+                    return;
+                }
                 if (pcbType?.startsWith('gigacart')) {
                     this.loadGigacartRPK(pcb, entries).then(loaded => {
                         subject.next(loaded);

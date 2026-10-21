@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.spec.json",
+  "files": ["../src/test.ts"],
+  "include": ["../src/app/classes/ubergrom-package.spec.ts", "../src/**/*.d.ts"]
+}

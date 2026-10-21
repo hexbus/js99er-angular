@@ -8,7 +8,7 @@
         <span>JP4 write protection</span>
       </label>
       <p id="ug-protection-help" class="hint">When enabled, TI programs cannot change Flash memory or the EEPROM configuration. This also prevents saving files to Flash. The EEPROM user-data area remains writable.</p>
-      <div class="actions"><button type="button" (click)="export()">Export current cartridge</button></div>
+      <div class="actions"><button type="button" (click)="export()">Export current cartridge (RPK)</button></div>
       <p class="hint">Use GROMCFG on the TI to configure memory mappings and program the cartridge.</p>
       <p class="hint">Software → Apps → UberGROM Utilities (disk) mounts Mike Brent (Tursi)'s tools in DSK1,
         replacing the disk there and keeping this cartridge loaded.
@@ -185,7 +185,7 @@
   } @else {
     <section aria-labelledby="ug-empty-title">
       <h2 id="ug-empty-title">UberGROM</h2>
-      <p>Choose <b>Load cart</b> to open an UberGROM ZIP, or create a blank board with recovery firmware to load GROMCFG from disk.</p>
+      <p>Choose <b>Load cart</b> to open an UberGROM RPK or an older UberGROM ZIP, or create a blank board with recovery firmware to load GROMCFG from disk.</p>
       <div class="actions"><button type="button" (click)="blank()" [disabled]="creatingBlank">Create blank virtual UberGROM</button></div>
       <p class="hint">{{status}}</p>
     </section>

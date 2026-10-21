@@ -11,6 +11,7 @@
     "test:sidmaster": "node tools/sid-master-test.cjs",
     "test:vdp-ports": "node tools/vdp-port-test.cjs",
     "test:direct-files": "node tools/direct-file-test.cjs",
+    "test:ubergrom-rpk": "ng test --watch=false --browsers=ChromeHeadless --ts-config=tools/tsconfig.ubergrom-rpk.json --include=src/app/classes/ubergrom-package.spec.ts",
     "test:ubergrom": "node tools/ubergrom-test.cjs",
     "test:ubergrom-inspector": "node tools/ubergrom-inspector-test.cjs",
     "test:ubergrom-blank": "node --test tools/ubergrom-blank-test.cjs",

@@ -1,6 +1,6 @@
 import {ChangeDetectorRef, Component, OnDestroy, OnInit} from '@angular/core';
 import {firstValueFrom, interval, Subscription} from 'rxjs';
-import {BlobWriter, Uint8ArrayReader, TextReader, ZipWriter} from '@zip.js/zip.js';
+import {exportUberGromRpk} from '../../classes/ubergrom-package';
 import {saveAs} from 'file-saver';
 import {Console} from '../../emulator/interfaces/console';
 import {inspectUberGromMappings, uberHex} from '../../classes/ubergrom-inspector';
@@ -174,19 +174,9 @@ export class UberGromComponent implements OnInit, OnDestroy {
     async export() {
         if (!this.device) return;
         try {
-            const writer = new ZipWriter(new BlobWriter('application/zip'));
             const image = this.device.exportImage();
-            const manifest: any = {format: 'js99er-ubergrom-1', name: 'UberGROM export',
-                flash: 'flash.bin', eeprom: 'eeprom.bin', writeProtected: image.writeProtected};
             const rom = this.console?.getMemory().getCartridge()?.getState().cartImage;
-            if (rom?.length) {
-                manifest.rom = 'rom.bin';
-                await writer.add('rom.bin', new Uint8ArrayReader(rom));
-            }
-            await writer.add('flash.bin', new Uint8ArrayReader(image.flash));
-            await writer.add('eeprom.bin', new Uint8ArrayReader(image.eeprom));
-            await writer.add('ubergrom.json', new TextReader(JSON.stringify(manifest, null, 2)));
-            saveAs(await writer.close(), 'ubergrom.zip');
+            saveAs(await exportUberGromRpk(image, rom), 'ubergrom.rpk');
             this.status = 'Exported current Flash and EEPROM';
         } catch (error) { this.status = 'Export failed: ' + error; }
     }

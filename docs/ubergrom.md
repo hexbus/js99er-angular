@@ -11,7 +11,9 @@ treating it as a complete hardware replacement.
 
 ## Load a cartridge
 
-Use **Load cart** to select a ZIP with `ubergrom.json` at its root:
+Use **Load cart** to select an UberGROM RPK. See the [proposed RPK definition](ubergrom-rpk.md) for the layout and memory sizes. **Export current cartridge** writes this RPK format.
+
+Older ZIPs with `ubergrom.json` at their root still load:
 
 ```json
 {
@@ -37,7 +39,7 @@ mapped as ordinary GROM or programmable storage. A 120 KiB input is padded
 with `FF` there. The parallel ROM is non-inverted address-banked ROM; its
 contents are not the ATmega Flash.
 
-This is an explicit js99er package format, not an RPK standard. A raw `.bin`
+The JSON format is the earlier js99er package format. The new RPK binding is a proposal for discussion with the other emulator authors. A raw `.bin`
 does not identify all these memories and is not guessed to be an UberGROM.
 Keep the source EEPROM with its matching Flash image: it determines what the
 TI sees.
@@ -45,8 +47,8 @@ TI sees.
 ## Programming and saved data
 
 Open the **UberGROM** tab for JP4 write protection and **Export current
-cartridge**. Export includes the current ATmega Flash, EEPROM, optional ROM
-and manifest.
+cartridge**. RPK export includes the current ATmega Flash, EEPROM, optional ROM
+and JP4 setting.
 
 Flash and EEPROM changes are saved in IndexedDB for this browser and site.
 Loading the same original package resumes that cartridge's stored contents.
