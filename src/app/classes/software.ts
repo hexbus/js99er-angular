@@ -33,6 +33,7 @@ export class Software {
 
     gigacartOptions?: GigacartOptions;
     ubergrom?: UberGromImage;
+    rpkVersion?: string;
 
     private _name: string;
     private _inverted: boolean;

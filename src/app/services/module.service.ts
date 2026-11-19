@@ -180,18 +180,21 @@ export class ModuleService {
                     subject.error(new Error('Invalid RPK XML.'));
                     return;
                 }
+                const root = xmlDoc.documentElement;
+                const version = root.tagName === 'romset'
+                    ? Array.from(root.children).find(element => element.tagName === 'rpkversion')?.textContent?.trim()
+                    : undefined;
+                const finish = (software: Software) => {
+                    software.rpkVersion = version || undefined;
+                    subject.next(software);
+                    subject.complete();
+                };
                 if (Array.from(xmlDoc.getElementsByTagName('pcb')).some(board => board.getAttribute('type')?.toLowerCase() === 'ubergrom')) {
-                    loadUberGromRpk(xmlDoc, entries).then(software => {
-                        subject.next(software);
-                        subject.complete();
-                    }).catch(error => subject.error(error));
+                    loadUberGromRpk(xmlDoc, entries).then(finish).catch(error => subject.error(error));
                     return;
                 }
                 if (pcbType?.startsWith('gigacart')) {
-                    this.loadGigacartRPK(pcb, entries).then(loaded => {
-                        subject.next(loaded);
-                        subject.complete();
-                    }).catch(error => subject.error(error));
+                    this.loadGigacartRPK(pcb, entries).then(finish).catch(error => subject.error(error));
                     return;
                 }
                 module.inverted = pcbType === 'paged379i';
@@ -229,8 +232,7 @@ export class ModuleService {
                         if (roms.length === 1 && roms[0].socketId !== 'rom2_socket') {
                             module.rom = ModuleService.padROM(roms[0].rom);
                             module.grom = softwares.find(s => s.grom)?.grom!;
-                            subject.next(module);
-                            subject.complete();
+                            finish(module);
                             return;
                         }
                         const romArray: number[] = [];
@@ -245,8 +247,7 @@ export class ModuleService {
                         if (romArray.length) {
                             module.rom = new Uint8Array(romArray);
                         }
-                        subject.next(module);
-                        subject.complete();
+                        finish(module);
                     },
                     error: (error) => {
                         subject.error(error);

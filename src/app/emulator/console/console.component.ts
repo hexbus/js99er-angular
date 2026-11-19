@@ -417,6 +417,9 @@ export class ConsoleComponent implements OnInit, AfterViewInit, OnDestroy {
             UberGromStorage.save(previous).catch(error => this.log.error('UberGROM save failed: ' + error));
         }
         this.ti994A.loadSoftware(software);
+        if (software.rpkVersion) {
+            this.log.info('RPK version ' + software.rpkVersion);
+        }
         this.eventDispatcherService.sendAsyncEvent(ConsoleEventType.CARTRIDGE_CHANGED, null);
         this.attachUberGromPersistence();
         return true;

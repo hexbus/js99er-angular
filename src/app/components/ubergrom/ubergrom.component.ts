@@ -175,8 +175,8 @@ export class UberGromComponent implements OnInit, OnDestroy {
         if (!this.device) return;
         try {
             const image = this.device.exportImage();
-            const rom = this.console?.getMemory().getCartridge()?.getState().cartImage;
-            saveAs(await exportUberGromRpk(image, rom), 'ubergrom.rpk');
+            const cartridge = this.console?.getMemory().getCartridge()?.getState();
+            saveAs(await exportUberGromRpk(image, cartridge?.cartImage, cartridge?.rpkVersion), 'ubergrom.rpk');
             this.status = 'Exported current Flash and EEPROM';
         } catch (error) { this.status = 'Export failed: ' + error; }
     }

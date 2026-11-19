@@ -29,6 +29,11 @@ describe('Proposed UberGROM RPK package', () => {
     const layout = `<romset><resources><rom id="f" file="flash.bin"/><rom id="e" file="eeprom.bin"/></resources>
         <configuration><pcb type="ubergrom"><socket id="flash_socket" uses="f"/>
         <socket id="eeprom_socket" uses="e"/></pcb></configuration></romset>`;
+    const persistentLayout = layout
+        .replace('<rom id="f" file="flash.bin"/>',
+            '<ram id="f" type="persistent" length="131072" file="test-flash.nv" preloaded="flash.bin"/>')
+        .replace('<rom id="e" file="eeprom.bin"/>',
+            '<ram id="e" type="persistent" length="4096" file="test-eeprom.nv" preloaded="eeprom.bin"/>');
     async function archive(text: string, data = image(), extra?: string) {
         const writer = new ZipWriter(new BlobWriter());
         await writer.add('layout.xml', new TextReader(text));
@@ -72,6 +77,43 @@ describe('Proposed UberGROM RPK package', () => {
         expect(sw.ubergrom!.flash.length).toBe(122880);
         expect(sw.ubergrom!.writeProtected).toBeFalse();
         expect(new UberGrom(sw.ubergrom!).flash.length).toBe(131072);
+        const exported = await load(await exportUberGromRpk(sw.ubergrom!));
+        expect(exported.ubergrom!.flash.slice(0, 122880)).toEqual(input.flash);
+        expect(exported.ubergrom!.flash.slice(122880).every(byte => byte === 255)).toBeTrue();
+    });
+
+    it('loads declared preloads and ignores a bundled file with the save name', async () => {
+        const input = image();
+        input.flash[0] = 0x56;
+        input.eeprom[0] = 0x78;
+        const writer = new ZipWriter(new BlobWriter());
+        await writer.add('layout.xml', new TextReader(persistentLayout));
+        await writer.add('flash.bin', new Uint8ArrayReader(input.flash));
+        await writer.add('eeprom.bin', new Uint8ArrayReader(input.eeprom));
+        await writer.add('test-flash.nv', new Uint8ArrayReader(new Uint8Array(131072)));
+        await writer.add('test-eeprom.nv', new Uint8ArrayReader(new Uint8Array(4096)));
+        const software = await load(await writer.close());
+        expect(software.ubergrom!.flash[0]).toBe(0x56);
+        expect(software.ubergrom!.eeprom[0]).toBe(0x78);
+    });
+
+    it('checks the persistent declarations and requires full-sized Flash preloads', async () => {
+        const invalid = [
+            persistentLayout.replace('type="persistent"', 'type="volatile"'),
+            persistentLayout.replace('length="131072"', 'length="122880"'),
+            persistentLayout.replace('length="4096"', 'length="131072"'),
+            persistentLayout.replace('file="test-eeprom.nv"', 'file="test-flash.nv"'),
+            persistentLayout.replace('file="test-eeprom.nv"', ''),
+            persistentLayout.replace('preloaded="flash.bin"', ''),
+            persistentLayout.replace('preloaded="flash.bin"', 'preloaded="absent.bin"'),
+            persistentLayout.replace('flash_socket', 'rom_socket')
+        ];
+        for (const text of invalid) {
+            await expectAsync(load(await archive(text))).toBeRejected();
+        }
+        const input = image();
+        input.flash = input.flash.slice(0, 122880);
+        await expectAsync(load(await archive(persistentLayout, input))).toBeRejected();
     });
     it('shares existing browser saves across equivalent JSON and RPK images', async () => {
         const input = image();
@@ -94,6 +136,11 @@ describe('Proposed UberGROM RPK package', () => {
             expect(legacy.ubergrom!.storageKey).toBe(key);
             expect(legacy.ubergrom!.flash[1000]).toBe(0x56);
             expect(legacy.ubergrom!.eeprom[1000]).toBe(0x78);
+            const olderRpk = await load(await archive(layout, input));
+            await UberGromStorage.prepare(olderRpk);
+            expect(olderRpk.ubergrom!.storageKey).toBe(key);
+            expect(olderRpk.ubergrom!.flash[1000]).toBe(0x56);
+            expect(olderRpk.ubergrom!.eeprom[1000]).toBe(0x78);
             const exported = await load(await exportUberGromRpk(device.exportImage()));
             expect(exported.ubergrom!.flash[1000]).toBe(0x56);
             expect(exported.ubergrom!.eeprom[1000]).toBe(0x78);
@@ -152,17 +199,27 @@ describe('Proposed UberGROM RPK package', () => {
         await expectAsync(load(await archive(checked.replace('f154670a', '00000000')))).toBeRejected();
         await expectAsync(load(await archive(checked.replace(sha, '0'.repeat(40))))).toBeRejected();
     });
-    it('keeps regular and Gigacart RPKs on the existing loader path', async () => {
+    it('reads release metadata for regular and Gigacart RPKs', async () => {
         service['log'] = {info() {}} as any;
         for (const type of ['standard', 'gigacart']) {
             const writer = new ZipWriter(new BlobWriter());
             await writer.add('layout.xml', new TextReader(`<romset><resources><rom id="r" file="r.bin"/></resources>
-                <configuration><pcb type="${type}"><socket id="rom_socket" uses="r"/></pcb></configuration></romset>`));
+                <configuration><pcb type="${type}"><socket id="rom_socket" uses="r"/></pcb></configuration>
+                <rpkversion>1.10</rpkversion></romset>`));
             await writer.add('r.bin', new Uint8ArrayReader(new Uint8Array(8192).fill(42)));
             const sw = await load(await writer.close());
             expect(sw.rom![0]).toBe(42); expect(sw.ubergrom).toBeFalsy();
             expect(sw.gigacart).toBe(type === 'gigacart');
+            expect(sw.rpkVersion).toBe('1.10');
         }
+    });
+    it('preserves the UberGROM release independently of the layout version on export', async () => {
+        const versioned = persistentLayout.replace('<romset>', '<romset version="1.0">')
+            .replace('</romset>', '<rpkversion> 1.10 &amp; &lt;beta&gt; </rpkversion></romset>');
+        const original = await load(await archive(versioned));
+        expect(original.rpkVersion).toBe('1.10 & <beta>');
+        const exported = await exportUberGromRpk(original.ubergrom!, original.rom, original.rpkVersion);
+        expect((await load(exported)).rpkVersion).toBe(original.rpkVersion);
     });
     it('retains the shipped recovery bytes when converting the blank template to RPK', async () => {
         const legacy = await load(await (await fetch('/assets/software/ubergrom-blank.zip')).blob());
@@ -174,7 +231,20 @@ describe('Proposed UberGROM RPK package', () => {
             const entries = await reader.getEntries();
             expect(entries.some(e => e.filename === 'ubergrom.json')).toBeFalse();
             const text = await entries.find(e => e.filename === 'layout.xml')!.getData!(new TextWriter());
-            expect(text).toContain('type="ubergrom"');
+            const manifest = xml(text);
+            expect(manifest.querySelector('pcb')?.getAttribute('type')).toBe('ubergrom');
+            expect(manifest.documentElement.getAttribute('version')).toBe('1.0');
+            expect(manifest.querySelector('rpkversion')).toBeNull();
+            expect(entries.map(entry => entry.filename).sort()).toEqual(['eeprom.bin', 'flash.bin', 'layout.xml']);
+            const flash = manifest.querySelector('ram[id="flash"]')!;
+            const eeprom = manifest.querySelector('ram[id="eeprom"]')!;
+            expect([flash.getAttribute('type'), eeprom.getAttribute('type')]).toEqual(['persistent', 'persistent']);
+            expect([flash.getAttribute('length'), eeprom.getAttribute('length')]).toEqual(['131072', '4096']);
+            expect([flash.getAttribute('preloaded'), eeprom.getAttribute('preloaded')]).toEqual(['flash.bin', 'eeprom.bin']);
+            const flashSave = flash.getAttribute('file')!;
+            const eepromSave = eeprom.getAttribute('file')!;
+            expect(flashSave).toMatch(/-flash\.nv$/);
+            expect(eepromSave).toMatch(/-eeprom\.nv$/);
         } finally { await reader.close(); }
     });
 });

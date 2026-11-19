@@ -15,6 +15,13 @@ Load an UberGROM package or create a blank board with recovery. The UberGROM
 tab provides write protection, export, serial/modem connections and hardware
 inspection. See [setup, programming and test results](docs/ubergrom.md).
 
+## RPK release version
+
+Any RPK can include an optional lowercase `<rpkversion>1.0</rpkversion>`
+directly inside `<romset>` in `layout.xml`. It identifies the cartridge
+release independently of the layout's `version` attribute. js99er shows it in
+the Log on load and carries it forward when exporting an UberGROM RPK.
+
 ## Setting up the development environment
 
 * Clone the repository to a folder on your computer

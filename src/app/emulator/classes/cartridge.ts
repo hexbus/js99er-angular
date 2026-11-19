@@ -13,6 +13,7 @@ export class Cartridge implements MemoryDevice, CRUDevice, Stateful  {
 
     private uberGrom?: UberGrom;
     private cartImage?: Uint8Array;
+    private rpkVersion?: string;
     private gromBases: GROMArray[];
     private inverted = false;
     private cruBankSwitched = false;
@@ -43,6 +44,7 @@ constructor(software: Software, private settings: Settings) {
             this.uberGrom = new UberGrom(software.ubergrom);
         }
         this.cartImage = software.rom;
+        this.rpkVersion = software.rpkVersion;
         this.bankCount = this.cartImage ? Math.floor(this.cartImage.length / 0x2000) : 0;
         this.gigacart = software.gigacart;
         if (this.gigacart && (this.bankCount < 1 || this.bankCount > 0x100000 ||
@@ -288,6 +290,7 @@ constructor(software: Software, private settings: Settings) {
     getState(): any {
         return {
             cartImage: this.cartImage,
+            rpkVersion: this.rpkVersion,
             ubergrom: this.uberGrom?.getState(),
             gromBases: this.gromBases.map(gb => gb.getState()),
             inverted: this.inverted,
@@ -310,6 +313,7 @@ constructor(software: Software, private settings: Settings) {
         this.uberGrom = state.ubergrom ? new UberGrom(state.ubergrom) : undefined;
         this.uberGrom?.restoreState(state.ubergrom);
         this.cartImage = state.cartImage;
+        this.rpkVersion = state.rpkVersion;
         this.gromBases = state.gromBases.map((data: any) => {
             const gromBase = new GROMArray();
             gromBase.restoreState(data);

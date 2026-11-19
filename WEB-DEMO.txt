@@ -1,0 +1,40 @@
+js99er with UberGROM - website demonstration
+
+Build using Node 24 LTS:
+  npm ci --legacy-peer-deps
+  node tools/build-web-demo.cjs
+
+Upload everything INSIDE dist/browser to a directory on your website, such
+as https://hexbus.com/js99er-ubergrom/. Open that address with its trailing
+slash. This is a static website: Node is needed to build, not to host it.
+Hash routes (#/...) need no special URL rewrite rules.
+Serve .wasm files as application/wasm. Use HTTPS.
+
+To try UberGROM:
+  Open the UberGROM tab and create a blank virtual UberGROM.
+  It includes the original recovery loader.
+  Software -> Apps -> UberGROM Utilities (disk) mounts the tools in DSK1
+  while keeping your cartridge loaded. Instructions and Tursi's original
+  documentation are linked from the UberGROM panel.
+  Or use Load cart to select a compatible UberGROM RPK/JSON ZIP.
+
+Flash and EEPROM changes are kept in this browser's site storage. Use
+Export current cartridge (RPK) to keep a portable copy of your changes.
+Clearing site data can remove unexported changes. Moving to another hostname
+does not move browser storage. Different paths on the same origin may share
+the emulator's browser data; a dedicated subdomain provides better isolation.
+
+This demo loads and exports the proposed persistent RAM/preloaded UberGROM RPK
+layout. It also loads the earlier ROM-resource RPKs and JSON ZIPs. Export
+writes the active Flash and EEPROM as the preloaded binaries in a fresh RPK.
+An optional lowercase rpkversion element can tag any RPK release. js99er
+shows it in the Log and preserves it on UberGROM export.
+
+On static hosting, UART local-terminal/loopback, GPIO and ADC controls are
+available. Calling a real BBS needs a separately hosted secure WebSocket-to-
+TCP modem service. The automatic local Wi-Fi modem launcher is for localhost
+and does not become a hexbus.com service by uploading these website files.
+No public modem gateway is supplied or deployed by this package.
+
+This remains a development demonstration, not an upstream js99er release.
+Credits and Tursi's original utility documentation remain in the build.

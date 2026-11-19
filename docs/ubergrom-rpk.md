@@ -15,10 +15,10 @@ memory images it names. This example includes the optional parallel ROM:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<romset>
+<romset version="1.0">
   <resources>
-    <rom id="flash" file="flash.bin" />
-    <rom id="eeprom" file="eeprom.bin" />
+    <ram id="flash" type="persistent" length="131072" file="mycart-flash.nv" preloaded="flash.bin" />
+    <ram id="eeprom" type="persistent" length="4096" file="mycart-eeprom.nv" preloaded="eeprom.bin" />
     <rom id="rom" file="rom.bin" />
   </resources>
   <configuration>
@@ -28,17 +28,23 @@ memory images it names. This example includes the optional parallel ROM:
       <socket id="rom_socket" uses="rom" />
     </pcb>
   </configuration>
+  <rpkversion>1.0</rpkversion>
 </romset>
 ```
 
-The `id` and file names are arbitrary; `uses` connects each socket to its
-resource. The socket names identify the hardware. RPK's `rom` resource element
-contains an initial memory image here; it does not make Flash or EEPROM
-read-only while the cartridge runs.
+`rpkversion` is optional release metadata for any RPK. It is a direct child
+of `romset` and is independent of the layout's `version` attribute. js99er
+preserves it on export when the loaded package specifies it.
+
+The `id` and file names are arbitrary. Each `uses` value connects a socket to
+its resource. For persistent RAM, `preloaded` names the starting image inside
+the RPK and `file` names the separate save. Use distinct save names for Flash
+and EEPROM. A ZIP member with the save name only supplies a starting image
+when `preloaded` explicitly names that member.
 
 | Socket | Contents | Size | Required? |
 | --- | --- | --- | --- |
-| `flash_socket` | ATmega1284P Flash image | 120 or 128 KiB | Yes |
+| `flash_socket` | ATmega1284P Flash image | 128 KiB (120 KiB also accepted in legacy layouts) | Yes |
 | `eeprom_socket` | ATmega EEPROM, including GROM mappings and saved data | 4 KiB | Yes |
 | `rom_socket` | Separate parallel cartridge ROM | 8, 16, 32, 64, 128, 256 or 512 KiB | No |
 
@@ -74,11 +80,14 @@ also stay in emulator settings, outside the cartridge package.
 
 Choose **Load cart** and select the RPK. **Export current cartridge** now writes
 `ubergrom.rpk`, containing the current Flash, EEPROM, optional ROM and JP4
-setting. It does not modify the file originally loaded. Browser storage still
-works as described in the [UberGROM instructions](ubergrom.md#programming-and-saved-data).
+setting. The exported images are the starting contents for the new package.
+The exporter assigns distinct `.nv` save names and leaves the source RPK
+intact. js99er keeps runtime saves in IndexedDB under the existing key derived
+from the starting image bytes. A matching browser save takes precedence when
+you load a package. See the [UberGROM instructions](ubergrom.md#programming-and-saved-data).
 
-Existing ZIPs with `ubergrom.json` continue to load. Both formats produce the
-same device images; converting a package does not rearrange its memories.
+Existing ZIPs with `ubergrom.json` and RPKs that describe the initial Flash and
+EEPROM as `<rom>` continue to load.
 Do not include both `layout.xml` and `ubergrom.json` in one archive.
 
 For a batch conversion, use:
@@ -87,10 +96,14 @@ For a batch conversion, use:
 python tools/convert-ubergrom-rpk.py SOURCE_DIRECTORY NEW_OUTPUT_DIRECTORY
 ```
 
+Pass `--rpkversion 1.0` to assign a release version to each converted package.
+
 The converter finds the older JSON packages, keeps their directory structure,
-preserves accompanying documentation and writes new RPKs. It leaves the source
-files alone and refuses to overwrite an existing output file. It does not copy
-browser-saved changes; use **Export current cartridge** to include those.
+preserves accompanying documentation and writes new RPKs. It extends 120 KiB
+Flash images to 128 KiB with `FF` bytes. That changes the browser save key for
+those packages. Use **Export current cartridge** to capture browser-saved
+changes in a new RPK. The converter leaves the source files alone and refuses
+to overwrite an existing output file.
 
 ## Validation rules in this implementation
 
@@ -99,7 +112,8 @@ Flash and EEPROM sockets are required. Duplicate IDs, files or sockets,
 unconnected resources, unknown sockets and unknown board settings are errors.
 The JP4 attribute accepts only `true` or `false`. XML is UTF-8; DTDs are not used.
 The layout may be at most 64 KiB. Referenced filenames must match ZIP entries
-exactly, including case. Each image must have one of the sizes above.
+exactly, including case. Each persistent preload must match its declared and
+board-supported size.
 
 Optional resource `crc` and `sha1` attributes are checked against the image
 bytes before loading. Use eight hexadecimal digits for CRC32 or forty for

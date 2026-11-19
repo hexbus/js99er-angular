@@ -43,8 +43,9 @@ export async function loadUberGromImages(data: UberGromPackage, entries: Entry[]
     };
     const software = new Software();
     software.name = data.name || 'UberGROM';
+    const flashSizes = resources?.get(data.flash)?.tagName === 'ram' ? [131072] : [122880, 131072];
     software.ubergrom = {
-        flash: await read(data.flash, [122880, 131072]),
+        flash: await read(data.flash, flashSizes),
         eeprom: await read(data.eeprom, [4096]),
         writeProtected: !!data.writeProtected
     };
@@ -69,19 +70,30 @@ export async function loadUberGromRpk(xml: Document, entries: Entry[]): Promise<
     if (Array.from(pcb.attributes).some(a => !['type', 'write_protected'].includes(a.name))) fail();
     const protection = pcb.getAttribute('write_protected');
     if (protection !== null && protection !== 'true' && protection !== 'false') fail();
-    const byId = new Map<string, Element>(), byFile = new Map<string, Element>();
+    const byId = new Map<string, string>(), byFile = new Map<string, Element>();
     for (const resource of Array.from(resourceList.children)) {
-        const id = resource.getAttribute('id'), file = resource.getAttribute('file');
-        if (resource.tagName !== 'rom' || !id || !file || byId.has(id) || byFile.has(file)) fail();
-        byId.set(id!, resource);
+        const id = resource.getAttribute('id');
+        const tag = resource.tagName;
+        const file = resource.getAttribute(tag === 'ram' ? 'preloaded' : 'file');
+        if (!['rom', 'ram'].includes(tag) || !id || !file || byId.has(id) || byFile.has(file)) fail();
+        byId.set(id!, file!);
         byFile.set(file!, resource);
     }
-    const sockets = new Map<string, string>(), used = new Set<string>();
+    const sockets = new Map<string, string>(), used = new Set<string>(), saveFiles = new Set<string>();
     for (const socket of Array.from(pcb.children)) {
         const id = socket.getAttribute('id'), uses = socket.getAttribute('uses');
         if (socket.tagName !== 'socket' || !id || !['flash_socket', 'eeprom_socket', 'rom_socket'].includes(id) ||
             sockets.has(id) || !uses || !byId.has(uses) || used.has(uses)) fail();
-        sockets.set(id!, byId.get(uses!)!.getAttribute('file')!);
+        const image = byId.get(uses!)!;
+        const resource = byFile.get(image)!;
+        if (resource.tagName === 'ram') {
+            const saveFile = resource.getAttribute('file')?.trim().toLowerCase();
+            const length = id === 'flash_socket' ? '131072' : '4096';
+            if (id === 'rom_socket' || resource.getAttribute('type') !== 'persistent' ||
+                resource.getAttribute('length') !== length || !saveFile || saveFiles.has(saveFile)) fail();
+            saveFiles.add(saveFile!);
+        }
+        sockets.set(id!, image);
         used.add(uses!);
     }
     if (!sockets.has('flash_socket') || !sockets.has('eeprom_socket') || used.size !== byId.size) fail();
@@ -89,25 +101,28 @@ export async function loadUberGromRpk(xml: Document, entries: Entry[]): Promise<
         rom: sockets.get('rom_socket'), writeProtected: protection === 'true'}, entries, byFile);
 }
 
-export async function exportUberGromRpk(image: UberGromImage, rom?: Uint8Array): Promise<Blob> {
+export async function exportUberGromRpk(image: UberGromImage, rom?: Uint8Array, rpkVersion?: string): Promise<Blob> {
     const writer = new ZipWriter(new BlobWriter('application/zip'));
+    const flash = new UberGrom(image).flash;
+    const savePrefix = 'ubergrom-' + crypto.randomUUID();
     const hasRom = !!rom?.length;
+    const version = rpkVersion?.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const layout = `<?xml version="1.0" encoding="UTF-8"?>
-<romset>
+<romset version="1.0">
   <resources>
-    <rom id="flash" file="flash.bin" />
-    <rom id="eeprom" file="eeprom.bin" />${hasRom ? '\n    <rom id="rom" file="rom.bin" />' : ''}
+    <ram id="flash" type="persistent" length="131072" file="${savePrefix}-flash.nv" preloaded="flash.bin" />
+    <ram id="eeprom" type="persistent" length="4096" file="${savePrefix}-eeprom.nv" preloaded="eeprom.bin" />${hasRom ? '\n    <rom id="rom" file="rom.bin" />' : ''}
   </resources>
   <configuration>
     <pcb type="ubergrom" write_protected="${!!image.writeProtected}">
       <socket id="flash_socket" uses="flash" />
       <socket id="eeprom_socket" uses="eeprom" />${hasRom ? '\n      <socket id="rom_socket" uses="rom" />' : ''}
     </pcb>
-  </configuration>
+  </configuration>${version ? '\n  <rpkversion>' + version + '</rpkversion>' : ''}
 </romset>
 `;
     await writer.add('layout.xml', new TextReader(layout));
-    await writer.add('flash.bin', new Uint8ArrayReader(image.flash));
+    await writer.add('flash.bin', new Uint8ArrayReader(flash));
     await writer.add('eeprom.bin', new Uint8ArrayReader(image.eeprom));
     if (hasRom) await writer.add('rom.bin', new Uint8ArrayReader(rom!));
     return writer.close();
